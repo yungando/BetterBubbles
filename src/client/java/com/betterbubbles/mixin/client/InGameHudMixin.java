@@ -11,6 +11,8 @@ import net.minecraft.sound.SoundEvent;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.util.math.random.Random;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -32,6 +34,11 @@ public abstract class InGameHudMixin {
 	@Shadow private PlayerEntity getCameraPlayer() { return null; }
 	@Shadow private LivingEntity getRiddenEntity() { return null; }
 	@Shadow private int getHeartCount(LivingEntity entity) { return 0; }
+
+	@Shadow private int ticks;
+	@Shadow @Final private Random random;
+	@Unique
+	private int previousFrameAir = 0;
 
 	@Inject(method = "renderStatusBars", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/hud/InGameHud;getHeartRows(I)I", shift = At.Shift.BEFORE), cancellable = true)
 	private void cancelVanillaAirMeter(DrawContext context, CallbackInfo ci) {
@@ -56,11 +63,12 @@ public abstract class InGameHudMixin {
 					} else if (z == x) {
 						context.drawGuiTexture(AIR_HALF_TEXTURE, m - z * 8 - 9, r, 9, 9);
 						if (z == s && playerEntity.isSubmergedIn(FluidTags.WATER)) {
-							MinecraftClient client = MinecraftClient.getInstance();
-							client.execute(() -> {
-								if (client.player != null) {
-									assert client.world != null;
-									client.world.playSound(
+							if (v < previousFrameAir) {
+								MinecraftClient client = MinecraftClient.getInstance();
+								client.execute(() -> {
+									if (client.player != null) {
+										assert client.world != null;
+										client.world.playSound(
 											client.player,
 											client.player.getX(),
 											client.player.getY(),
@@ -69,16 +77,17 @@ public abstract class InGameHudMixin {
 											SoundCategory.MASTER,
 											1.0F,
 											2.0F - ((x + y) / 10F)
-									);
-								}
-							});
+										);
+									}
+								});
+							}
 						}
 					}
 				}
 				for (int z = 10; z > x + y; z--) {
 					context.drawGuiTexture(AIR_EMPTY_TEXTURE, m - z * 8 - 1, r, 9, 9);
 				}
-
+				previousFrameAir = v;
 				RenderSystem.disableBlend();
 			}
 		}
